@@ -1,0 +1,21 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+.container {
+    max-width: 1200px;
+}
+.card {
+    border-radius: 8px;
+}
+.table th, .table td {
+    vertical-align: middle;
+}
+.form-label {
+    font-weight: 500;
+}
+.btn {
+    border-radius: 5px;
+}
+.modal-content {
+    border-radius: 8px;
+}
