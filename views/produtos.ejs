@@ -1,147 +1,214 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerenciar Produtos</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerenciar Produtos</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .btn-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+  </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">Gerenciador</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/produtos">Produtos</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/clientes">Clientes</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/vendas">Vendas</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/carga-produtos">Carga de Produtos</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-    <div class="container mt-4">
-        <h1 class="mb-4">Gerenciar Produtos</h1>
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Adicionar Produto</h5>
-                <form action="/produtos" method="POST">
-                    <div class="mb-3">
-                        <label class="form-label">Nome</label>
-                        <input type="text" class="form-control" name="nome" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Código de Barras</label>
-                        <input type="text" class="form-control" name="barcode" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Valor Unitário</label>
-                        <input type="number" step="0.01" class="form-control" name="valor_unitario" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Valor de Venda</label>
-                        <input type="number" step="0.01" class="form-control" name="valor_venda">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Descrição</label>
-                        <textarea class="form-control" name="descricao"></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Quantidade em Estoque</label>
-                        <input type="number" class="form-control" name="quantidade" value="0" min="0">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Adicionar Produto</button>
-                </form>
-            </div>
-        </div>
-        <h2 class="mb-3">Lista de Produtos</h2>
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>Nome</th>
-                        <th>Código de Barras</th>
-                        <th>Valor Unitário</th>
-                        <th>Valor de Venda</th>
-                        <th>Descrição</th>
-                        <th>Quantidade</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <% produtos.forEach(produto => { %>
-                        <tr>
-                            <td><%= produto.nome %></td>
-                            <td><%= produto.barcode %></td>
-                            <td>R$ <%= parseFloat(produto.valor_unitario).toFixed(2) %></td>
-                            <td><%= produto.valor_venda ? 'R$ ' + parseFloat(produto.valor_venda).toFixed(2) : '-' %></td>
-                            <td><%= produto.descricao || '-' %></td>
-                            <td><%= produto.quantidade || 0 %></td>
-                            <td>
-                                <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<%= produto.id %>">Editar</button>
-                                <form action="/produtos/deletar/<%= produto.id %>" method="POST" style="display:inline;">
-                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Tem certeza que deseja deletar?')">Deletar</button>
-                                </form>
-                                <a href="/produtos/etiqueta/<%= produto.id %>" class="btn btn-sm btn-info">Imprimir Etiquetas</a>
-                            </td>
-                        </tr>
-                        <!-- Modal de Edição -->
-                        <div class="modal fade" id="editModal<%= produto.id %>" tabindex="-1" aria-labelledby="editModalLabel<%= produto.id %>" aria-hidden="true">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title" id="editModalLabel<%= produto.id %>">Editar Produto</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <form action="/produtos/editar/<%= produto.id %>" method="POST">
-                                            <div class="mb-3">
-                                                <label class="form-label">Nome</label>
-                                                <input type="text" class="form-control" name="nome" value="<%= produto.nome %>" required>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Código de Barras</label>
-                                                <input type="text" class="form-control" name="barcode" value="<%= produto.barcode %>" required>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Valor Unitário</label>
-                                                <input type="number" step="0.01" class="form-control" name="valor_unitario" value="<%= produto.valor_unitario %>" required>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Valor de Venda</label>
-                                                <input type="number" step="0.01" class="form-control" name="valor_venda" value="<%= produto.valor_venda || '' %>">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Descrição</label>
-                                                <textarea class="form-control" name="descricao"><%= produto.descricao || '' %></textarea>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Quantidade em Estoque</label>
-                                                <input type="number" class="form-control" name="quantidade" value="<%= produto.quantidade || 0 %>" min="0">
-                                            </div>
-                                            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    <% }); %>
-                </tbody>
-            </table>
-        </div>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="/">📦 Gerenciador</a>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  </nav>
+
+  <div class="container my-4">
+    <h1 class="mb-4 text-center">Gerenciar Produtos</h1>
+
+    <!-- Formulário -->
+    <div class="card shadow-sm mb-5">
+      <div class="card-body">
+        <h5 class="card-title mb-3">➕ Adicionar Produto</h5>
+        <form action="/produtos" method="POST">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Nome</label>
+              <input type="text" class="form-control" name="nome" placeholder="Ex: Caneta Azul" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Código de Barras</label>
+              <input type="text" class="form-control" name="barcode" placeholder="Ex: 123456789012" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Valor Unitário</label>
+              <input type="number" step="0.01" class="form-control" name="valor_unitario" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Valor de Venda</label>
+              <input type="number" step="0.01" class="form-control" name="valor_venda">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Quantidade em Estoque</label>
+              <input type="number" class="form-control" name="quantidade" value="0" min="0">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Descrição</label>
+              <textarea class="form-control" name="descricao" rows="2" placeholder="Ex: Caneta esferográfica azul..."></textarea>
+            </div>
+          </div>
+          <div class="mt-3 text-end">
+            <button type="submit" class="btn btn-primary btn-lg">💾 Salvar Produto</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Lista de produtos -->
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h2 class="h4">📋 Lista de Produtos</h2>
+      <small id="resultadoCount" class="text-muted"></small>
+    </div>
+
+    <!-- Filtro -->
+    <div class="input-group mb-3">
+      <span class="input-group-text">🔍</span>
+      <input id="buscarNome" type="search" class="form-control" placeholder="Buscar produto por nome...">
+      <button id="btnLimparBusca" class="btn btn-outline-secondary">Limpar</button>
+    </div>
+
+    <!-- Configurações de paginação -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <label for="itensPorPagina" class="form-label mb-0 me-2">Itens por página:</label>
+        <select id="itensPorPagina" class="form-select d-inline-block w-auto">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Tabela -->
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>Nome</th>
+            <th>Código de Barras</th>
+            <th>Valor Unitário</th>
+            <th>Valor de Venda</th>
+            <th>Quantidade</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tBodyProdutos">
+          <% produtos.forEach(produto => { %>
+            <tr>
+              <td class="cell-nome fw-semibold"><%= produto.nome %></td>
+              <td><%= produto.barcode %></td>
+              <td>R$ <%= parseFloat(produto.valor_unitario).toFixed(2) %></td>
+              <td><%= produto.valor_venda ? 'R$ ' + parseFloat(produto.valor_venda).toFixed(2) : '-' %></td>
+              <td><span class="badge bg-info"><%= produto.quantidade || 0 %></span></td>
+              <td>
+                <button class="btn btn-sm btn-warning btn-icon" data-bs-toggle="modal" data-bs-target="#editModal<%= produto.id %>">✏️ Editar</button>
+                <form action="/produtos/deletar/<%= produto.id %>" method="POST" style="display:inline;">
+                  <button type="submit" class="btn btn-sm btn-danger btn-icon" onclick="return confirm('Tem certeza que deseja deletar?')">🗑️ Excluir</button>
+                </form>
+                <a href="/produtos/etiqueta/<%= produto.id %>" class="btn btn-sm btn-info btn-icon">🏷️ Etiquetas</a>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Paginação -->
+    <nav>
+      <ul id="pagination" class="pagination justify-content-center"></ul>
+    </nav>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function () {
+      const input = document.getElementById('buscarNome');
+      const btnLimpar = document.getElementById('btnLimparBusca');
+      const tBody = document.getElementById('tBodyProdutos');
+      const rows = Array.from(tBody.querySelectorAll('tr'));
+      const countEl = document.getElementById('resultadoCount');
+      const pagination = document.getElementById('pagination');
+      const selectItens = document.getElementById('itensPorPagina');
+
+      let currentPage = 1;
+      let itensPorPagina = parseInt(selectItens.value);
+
+      const normalize = (s) =>
+        (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+      const render = () => {
+        const q = normalize(input?.value?.trim() || '');
+        const filtrados = rows.filter(tr => {
+          const nome = normalize(tr.querySelector('.cell-nome')?.textContent ?? '');
+          return nome.includes(q);
+        });
+
+        const total = filtrados.length;
+        const totalPages = Math.ceil(total / itensPorPagina) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        // Esconder todos
+        rows.forEach(tr => tr.style.display = 'none');
+
+        // Mostrar apenas os da página atual
+        const start = (currentPage - 1) * itensPorPagina;
+        const end = start + itensPorPagina;
+        filtrados.slice(start, end).forEach(tr => tr.style.display = '');
+
+        // Atualizar contagem
+        countEl.textContent = `${total} produto(s) encontrado(s) | Página ${currentPage} de ${totalPages}`;
+
+        // Construir paginação
+        pagination.innerHTML = '';
+        const addPageItem = (page, label = page, active = false, disabled = false) => {
+          const li = document.createElement('li');
+          li.className = `page-item ${active ? 'active' : ''} ${disabled ? 'disabled' : ''}`;
+          li.innerHTML = `<a class="page-link" href="#">${label}</a>`;
+          li.onclick = (e) => {
+            e.preventDefault();
+            if (!disabled) {
+              currentPage = page;
+              render();
+            }
+          };
+          pagination.appendChild(li);
+        };
+
+        addPageItem(currentPage - 1, '«', false, currentPage === 1);
+        for (let i = 1; i <= totalPages; i++) {
+          if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            addPageItem(i, i, i === currentPage);
+          } else if (i === currentPage - 3 || i === currentPage + 3) {
+            const li = document.createElement('li');
+            li.className = 'page-item disabled';
+            li.innerHTML = `<span class="page-link">...</span>`;
+            pagination.appendChild(li);
+          }
+        }
+        addPageItem(currentPage + 1, '»', false, currentPage === totalPages);
+      };
+
+      // Eventos
+      input?.addEventListener('input', () => { currentPage = 1; render(); });
+      btnLimpar?.addEventListener('click', () => { input.value = ''; currentPage = 1; render(); });
+      selectItens.addEventListener('change', () => {
+        itensPorPagina = parseInt(selectItens.value);
+        currentPage = 1;
+        render();
+      });
+
+      // Inicializar
+      render();
+    })();
+  </script>
 </body>
 </html>

@@ -198,10 +198,11 @@ app.get('/produtos/etiqueta/:id', async (req, res) => {
     const quantidade = produto.quantidade || 0;
     const nome = (produto.nome || '').substring(0, 30);
     const preco = getPreco(produto);
+    const quant_tratada = Math.ceil(quantidade / 3);
 
     // Conteúdo PPLA
     let prnContent = '';
-    for (let i = 0; i < quantidade; i++) {
+    for (let i = 0; i < quant_tratada; i++) {
         console.log(i);
       prnContent += `L
 m
