@@ -197,6 +197,106 @@ app.post('/usuarios/novo', requireAuth, requireAdmin, async (req, res) => {
 });
 
 
+// ======== Perfil do usuário (autogerenciado) ========
+
+// pequeno limitador p/ trocas sensíveis
+const perfilLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 min
+  max: 60
+});
+
+// utilitário rápido
+async function getUserById(id) {
+  const { rows } = await pool.query(
+    'SELECT id, nome, email, senha_hash, role FROM usuarios WHERE id = $1',
+    [id]
+  );
+  return rows[0] || null;
+}
+
+// Tela de perfil
+app.get('/perfil', requireAuth, async (req, res) => {
+  res.render('perfil', {
+    usuario: req.session.usuario,
+    msg: req.query.msg || '',
+    err: req.query.err || ''
+  });
+});
+
+// Atualizar e-mail (exige senha atual)
+app.post('/perfil/email', requireAuth, perfilLimiter, async (req, res) => {
+  try {
+    const { email, senha_atual } = req.body;
+    if (!email || !senha_atual) {
+      return res.redirect('/perfil?err=' + encodeURIComponent('Preencha e-mail e senha atual.'));
+    }
+
+    const user = await getUserById(req.session.usuario.id);
+    if (!user) return res.redirect('/logout');
+
+    const ok = await bcrypt.compare(senha_atual, user.senha_hash);
+    if (!ok) {
+      return res.redirect('/perfil?err=' + encodeURIComponent('Senha atual incorreta.'));
+    }
+
+    // checa se e-mail já está em uso por outro usuário
+    const { rows: exists } = await pool.query(
+      'SELECT 1 FROM usuarios WHERE email = $1 AND id <> $2',
+      [email.toLowerCase(), user.id]
+    );
+    if (exists.length > 0) {
+      return res.redirect('/perfil?err=' + encodeURIComponent('E-mail já está em uso por outro usuário.'));
+    }
+
+    await pool.query(
+      'UPDATE usuarios SET email = $1, updated_at = NOW() WHERE id = $2',
+      [email.toLowerCase(), user.id]
+    );
+
+    // atualiza sessão
+    req.session.usuario.email = email.toLowerCase();
+
+    return res.redirect('/perfil?msg=' + encodeURIComponent('E-mail atualizado com sucesso.'));
+  } catch (e) {
+    console.error(e);
+    return res.redirect('/perfil?err=' + encodeURIComponent('Erro ao atualizar e-mail.'));
+  }
+});
+
+// Atualizar senha (exige senha atual + confirmação)
+app.post('/perfil/senha', requireAuth, perfilLimiter, async (req, res) => {
+  try {
+    const { senha_atual, nova_senha, confirmar_senha } = req.body;
+    if (!senha_atual || !nova_senha || !confirmar_senha) {
+      return res.redirect('/perfil?err=' + encodeURIComponent('Preencha todos os campos de senha.'));
+    }
+    if (nova_senha.length < 6) {
+      return res.redirect('/perfil?err=' + encodeURIComponent('A nova senha deve ter ao menos 6 caracteres.'));
+    }
+    if (nova_senha !== confirmar_senha) {
+      return res.redirect('/perfil?err=' + encodeURIComponent('A confirmação não coincide com a nova senha.'));
+    }
+
+    const user = await getUserById(req.session.usuario.id);
+    if (!user) return res.redirect('/logout');
+
+    const ok = await bcrypt.compare(senha_atual, user.senha_hash);
+    if (!ok) {
+      return res.redirect('/perfil?err=' + encodeURIComponent('Senha atual incorreta.'));
+    }
+
+    const hash = await bcrypt.hash(nova_senha, 12);
+    await pool.query(
+      'UPDATE usuarios SET senha_hash = $1, updated_at = NOW() WHERE id = $2',
+      [hash, user.id]
+    );
+
+    return res.redirect('/perfil?msg=' + encodeURIComponent('Senha atualizada com sucesso.'));
+  } catch (e) {
+    console.error(e);
+    return res.redirect('/perfil?err=' + encodeURIComponent('Erro ao atualizar senha.'));
+  }
+});
 
 
 // Login
