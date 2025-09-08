@@ -114,8 +114,14 @@
                   <button type="submit" class="btn btn-sm btn-danger btn-icon">🗑️ Excluir</button>
                 </form>
 
-                <!-- ETIQUETAS -->
-                <a href="/produtos/etiqueta/<%= produto.id %>" class="btn btn-sm btn-info btn-icon">🏷️ Etiquetas</a>
+                <!-- ETIQUETAS (abre modal) -->
+                <button
+                  type="button"
+                  class="btn btn-sm btn-info btn-icon"
+                  data-bs-toggle="modal"
+                  data-bs-target="#etiquetaModal-<%= produto.id %>">
+                  🏷️ Etiquetas
+                </button>
               </td>
             </tr>
           <% }); %>
@@ -174,9 +180,78 @@
   <% }); %>
   <!-- ========= /MODAIS ========= -->
 
+  <!-- ========= MODAIS DE ETIQUETAS ========= -->
+  <% produtos.forEach(produto => { %>
+    <div class="modal fade etiqueta-modal" id="etiquetaModal-<%= produto.id %>" tabindex="-1" aria-labelledby="etiquetaLabel-<%= produto.id %>" aria-hidden="true" data-estoque="<%= produto.quantidade || 0 %>">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form action="/produtos/etiqueta/<%= produto.id %>" method="GET">
+            <div class="modal-header">
+              <h5 class="modal-title" id="etiquetaLabel-<%= produto.id %>">🏷️ Etiquetas para <%= produto.nome %></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+
+            <div class="modal-body">
+              <div class="mb-3">
+                <span class="text-muted">Estoque atual:</span>
+                <span class="badge bg-info ms-1"><%= produto.quantidade || 0 %></span>
+              </div>
+
+              <div class="form-check mb-2">
+                <input class="form-check-input opt-estoque" type="radio" name="modo-<%= produto.id %>" id="optEstoque-<%= produto.id %>" checked>
+                <label class="form-check-label" for="optEstoque-<%= produto.id %>">
+                  Imprimir a <strong>quantidade total do estoque</strong>
+                </label>
+              </div>
+
+              <div class="form-check mb-3">
+                <input class="form-check-input opt-personalizada" type="radio" name="modo-<%= produto.id %>" id="optPersonalizada-<%= produto.id %>">
+                <label class="form-check-label" for="optPersonalizada-<%= produto.id %>">
+                  Usar <strong>quantidade personalizada</strong>
+                </label>
+              </div>
+
+              <div class="row g-2 align-items-end">
+                <div class="col-8">
+                  <label for="inpQtd-<%= produto.id %>" class="form-label">Quantidade</label>
+                  <input
+                    type="number"
+                    class="form-control inp-qtd"
+                    id="inpQtd-<%= produto.id %>"
+                    name="quantidade"
+                    value="<%= produto.quantidade || 0 %>"
+                    min="1"
+                    required
+                    disabled
+                  >
+                </div>
+                <div class="col-4">
+                  <label class="form-label d-block">&nbsp;</label>
+                  <button type="button" class="btn btn-outline-secondary w-100 btn-fill-estoque">Usar estoque</button>
+                </div>
+              </div>
+
+              <!-- Opcional: dica sobre impressoras 3-em-3
+              <div class="form-text mt-2">
+                Dica: se sua impressora imprime 3 por vez, você pode ajustar a quantidade para múltiplos de 3.
+              </div> -->
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" class="btn btn-primary">🖨️ Imprimir</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  <% }); %>
+  <!-- ========= /MODAIS DE ETIQUETAS ========= -->
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     (function () {
+      // ====== Busca + Paginação ======
       const input = document.getElementById('buscarNome');
       const btnLimpar = document.getElementById('btnLimparBusca');
       const tBody = document.getElementById('tBodyProdutos');
@@ -248,6 +323,47 @@
       });
 
       render();
+
+      // ====== Lógica dos Modais de Etiquetas ======
+      // Ativa/desativa campo de quantidade conforme a opção escolhida
+      document.querySelectorAll('.etiqueta-modal').forEach(modalEl => {
+        const estoque = parseInt(modalEl.getAttribute('data-estoque') || '0', 10);
+        const optEstoque = modalEl.querySelector('.opt-estoque');
+        const optPersonalizada = modalEl.querySelector('.opt-personalizada');
+        const inpQtd = modalEl.querySelector('.inp-qtd');
+        const btnFill = modalEl.querySelector('.btn-fill-estoque');
+
+        const applyState = () => {
+          if (optEstoque.checked) {
+            inpQtd.value = Math.max(estoque, 1);   // se estoque for 0, garante 1
+            inpQtd.setAttribute('disabled', 'disabled');
+          } else {
+            inpQtd.removeAttribute('disabled');
+            if (!inpQtd.value || parseInt(inpQtd.value, 10) < 1) {
+              inpQtd.value = 1;
+            }
+          }
+        };
+
+        // Ao abrir o modal, garantir o estado correto
+        modalEl.addEventListener('shown.bs.modal', applyState);
+
+        optEstoque.addEventListener('change', applyState);
+        optPersonalizada.addEventListener('change', applyState);
+
+        // Botão "Usar estoque"
+        btnFill.addEventListener('click', (e) => {
+          e.preventDefault();
+          optEstoque.checked = true;
+          applyState();
+        });
+
+        // Sanitiza a entrada personalizada
+        inpQtd.addEventListener('input', () => {
+          const v = parseInt(inpQtd.value || '1', 10);
+          if (isNaN(v) || v < 1) inpQtd.value = 1;
+        });
+      });
     })();
   </script>
 </body>

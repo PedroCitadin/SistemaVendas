@@ -181,34 +181,44 @@ app.get('/produtos/buscar', async (req, res) => {
 app.get('/produtos/etiqueta/:id', async (req, res) => {
   try {
     const produtoId = req.params.id;
+
     const result = await pool.query(
-      `SELECT p.id, p.nome, p.barcode, p.valor_venda, p.valor_unitario, e.quantidade
+      `SELECT p.id, p.nome, p.barcode, p.valor_venda, p.valor_unitario, COALESCE(e.quantidade, 0) AS quantidade
        FROM produtos p
        LEFT JOIN estoque e ON p.id = e.id_produto
        WHERE p.id = $1`,
       [produtoId]
     );
+
     if (result.rows.length === 0) {
       throw new Error('Produto não encontrado');
     }
+
     const produto = result.rows[0];
 
-    // Garante barcode correto a partir do id
+    // Barcode baseado no ID (mantido do seu código)
     const barcode = formatBarcodeFromId(produto.id);
-    const quantidade = produto.quantidade || 0;
+
+    // Quantidade vinda do modal (?quantidade=) OU do estoque
+    const qParam = Number(req.query.quantidade);
+    let quantidade = Number.isFinite(qParam) ? qParam : Number(produto.quantidade) || 0;
+
+
+    // Sanitiza: inteiro e mínimo 1
+    quantidade = Math.max(1, Math.trunc(quantidade));
+
+    // Nome e preço (mantendo sua lógica utilitária)
     const nome = (produto.nome || '').substring(0, 30);
     const preco = getPreco(produto);
-   
 
-    // Conteúdo PPLA
+    // Geração do conteúdo PRN (PPLA)
     let prnContent = '';
     for (let i = 0; i < quantidade; i++) {
-        
       prnContent += `L
    D11
     122100000950020${nome}
     121100000650020R$ ${preco}
-    1D0004000300020${barcode}
+    1D0004000100040${barcode}
     ^01
     Q0001
    E
@@ -218,13 +228,15 @@ app.get('/produtos/etiqueta/:id', async (req, res) => {
     }
 
     res.setHeader('Content-Disposition', `attachment; filename=etiqueta_${produtoId}.prn`);
-    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.send(prnContent);
+
   } catch (err) {
     console.error(err);
     res.status(500).send('Erro ao gerar etiqueta: ' + err.message);
   }
 });
+
 
 // --------- Clientes ---------
 app.get('/clientes', async (req, res) => {
