@@ -6,11 +6,7 @@
   <title>Gerenciar Produtos</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    .btn-icon {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
+    .btn-icon{display:inline-flex;align-items:center;gap:4px}
   </style>
 </head>
 <body>
@@ -33,10 +29,6 @@
             <div class="col-md-6">
               <label class="form-label">Nome</label>
               <input type="text" class="form-control" name="nome" placeholder="Ex: Caneta Azul" required>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Código de Barras</label>
-              <input type="text" class="form-control" name="barcode" placeholder="Ex: 123456789012" required>
             </div>
             <div class="col-md-4">
               <label class="form-label">Valor Unitário</label>
@@ -72,7 +64,7 @@
     <div class="input-group mb-3">
       <span class="input-group-text">🔍</span>
       <input id="buscarNome" type="search" class="form-control" placeholder="Buscar produto por nome...">
-      <button id="btnLimparBusca" class="btn btn-outline-secondary">Limpar</button>
+      <button id="btnLimparBusca" class="btn btn-outline-secondary" type="button">Limpar</button>
     </div>
 
     <!-- Configurações de paginação -->
@@ -94,7 +86,6 @@
         <thead class="table-dark">
           <tr>
             <th>Nome</th>
-            <th>Código de Barras</th>
             <th>Valor Unitário</th>
             <th>Valor de Venda</th>
             <th>Quantidade</th>
@@ -105,15 +96,25 @@
           <% produtos.forEach(produto => { %>
             <tr>
               <td class="cell-nome fw-semibold"><%= produto.nome %></td>
-              <td><%= produto.barcode %></td>
               <td>R$ <%= parseFloat(produto.valor_unitario).toFixed(2) %></td>
               <td><%= produto.valor_venda ? 'R$ ' + parseFloat(produto.valor_venda).toFixed(2) : '-' %></td>
               <td><span class="badge bg-info"><%= produto.quantidade || 0 %></span></td>
-              <td>
-                <button class="btn btn-sm btn-warning btn-icon" data-bs-toggle="modal" data-bs-target="#editModal<%= produto.id %>">✏️ Editar</button>
-                <form action="/produtos/deletar/<%= produto.id %>" method="POST" style="display:inline;">
-                  <button type="submit" class="btn btn-sm btn-danger btn-icon" onclick="return confirm('Tem certeza que deseja deletar?')">🗑️ Excluir</button>
+              <td class="d-flex gap-1">
+                <!-- EDITAR -->
+                <button
+                  type="button"
+                  class="btn btn-sm btn-warning btn-icon"
+                  data-bs-toggle="modal"
+                  data-bs-target="#editModal-<%= produto.id %>">
+                  ✏️ Editar
+                </button>
+
+                <!-- EXCLUIR -->
+                <form action="/produtos/deletar/<%= produto.id %>" method="POST" onsubmit="return confirm('Tem certeza que deseja deletar?')">
+                  <button type="submit" class="btn btn-sm btn-danger btn-icon">🗑️ Excluir</button>
                 </form>
+
+                <!-- ETIQUETAS -->
                 <a href="/produtos/etiqueta/<%= produto.id %>" class="btn btn-sm btn-info btn-icon">🏷️ Etiquetas</a>
               </td>
             </tr>
@@ -127,6 +128,51 @@
       <ul id="pagination" class="pagination justify-content-center"></ul>
     </nav>
   </div>
+
+  <!-- ========= MODAIS DE EDIÇÃO ========= -->
+  <% produtos.forEach(produto => { %>
+    <div class="modal fade" id="editModal-<%= produto.id %>" tabindex="-1" aria-labelledby="editLabel-<%= produto.id %>" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <form action="/produtos/editar/<%= produto.id %>" method="POST">
+            <div class="modal-header">
+              <h5 class="modal-title" id="editLabel-<%= produto.id %>">✏️ Editar Produto #<%= produto.id %></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">Nome</label>
+                  <input type="text" class="form-control" name="nome" value="<%= produto.nome %>" required>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Valor Unitário</label>
+                  <input type="number" step="0.01" class="form-control" name="valor_unitario" value="<%= produto.valor_unitario %>" required>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Valor de Venda</label>
+                  <input type="number" step="0.01" class="form-control" name="valor_venda" value="<%= produto.valor_venda ?? '' %>">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Quantidade em Estoque</label>
+                  <input type="number" class="form-control" name="quantidade" value="<%= produto.quantidade || 0 %>" min="0">
+                </div>
+                <div class="col-12">
+                  <label class="form-label">Descrição</label>
+                  <textarea class="form-control" name="descricao" rows="2"><%= produto.descricao || '' %></textarea>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" class="btn btn-primary">💾 Salvar alterações</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  <% }); %>
+  <!-- ========= /MODAIS ========= -->
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
@@ -156,18 +202,14 @@
         const totalPages = Math.ceil(total / itensPorPagina) || 1;
         if (currentPage > totalPages) currentPage = totalPages;
 
-        // Esconder todos
         rows.forEach(tr => tr.style.display = 'none');
 
-        // Mostrar apenas os da página atual
         const start = (currentPage - 1) * itensPorPagina;
         const end = start + itensPorPagina;
         filtrados.slice(start, end).forEach(tr => tr.style.display = '');
 
-        // Atualizar contagem
         countEl.textContent = `${total} produto(s) encontrado(s) | Página ${currentPage} de ${totalPages}`;
 
-        // Construir paginação
         pagination.innerHTML = '';
         const addPageItem = (page, label = page, active = false, disabled = false) => {
           const li = document.createElement('li');
@@ -197,7 +239,6 @@
         addPageItem(currentPage + 1, '»', false, currentPage === totalPages);
       };
 
-      // Eventos
       input?.addEventListener('input', () => { currentPage = 1; render(); });
       btnLimpar?.addEventListener('click', () => { input.value = ''; currentPage = 1; render(); });
       selectItens.addEventListener('change', () => {
@@ -206,7 +247,6 @@
         render();
       });
 
-      // Inicializar
       render();
     })();
   </script>

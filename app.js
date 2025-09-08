@@ -65,7 +65,7 @@ app.get('/produtos', async (req, res) => {
       SELECT p.id, p.nome, p.barcode, p.valor_unitario, p.valor_venda, p.descricao, e.quantidade
       FROM produtos p
       LEFT JOIN estoque e ON p.id = e.id_produto
-      ORDER BY p.id ASC
+      ORDER BY p.nome ASC
     `);
     res.render('produtos', { produtos: result.rows });
   } catch (err) {
@@ -157,7 +157,7 @@ app.get('/produtos/buscar', async (req, res) => {
       `SELECT p.id, p.nome, p.barcode, p.valor_venda, p.valor_unitario, e.quantidade AS estoque
        FROM produtos p
        LEFT JOIN estoque e ON p.id = e.id_produto
-       WHERE p.barcode = $1`,
+       WHERE p.barcode = $1 order by p.nome`,
       [barcode]
     );
     if (result.rows.length === 0) {
@@ -198,36 +198,22 @@ app.get('/produtos/etiqueta/:id', async (req, res) => {
     const quantidade = produto.quantidade || 0;
     const nome = (produto.nome || '').substring(0, 30);
     const preco = getPreco(produto);
-    const quant_tratada = Math.ceil(quantidade / 3);
+   
 
     // Conteúdo PPLA
     let prnContent = '';
-    for (let i = 0; i < quant_tratada; i++) {
-        console.log(i);
+    for (let i = 0; i < quantidade; i++) {
+        
       prnContent += `L
-m
-e
-PC
-D11
-H14
-z
-111100001800050${nome}
-111100001600050
-111100001300050${preco}
-1D4203800500040${barcode}
+   D11
+    122100000950020${nome}
+    121100000650020R$ ${preco}
+    1D0004000300020${barcode}
+    ^01
+    Q0001
+   E
 
-111100001800410${nome}
-111100001600410
-111100001300410${preco}
-1D4203800500400${barcode}
 
-111100001800770${nome}
-111100001600770
-111100001300770${preco}
-1D4203800500760${barcode}
-
-Q001
-E
 `;
     }
 
@@ -506,15 +492,15 @@ app.post('/carga-produtos', upload.single('excelFile'), async (req, res) => {
 
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
-      if (row.length < 6 || !row[0] || row[0].toString().toUpperCase() === 'TOTAL') continue;
+      if (!row[0] || row[0].toString().toUpperCase() === 'TOTAL') continue;
 
       const descricao = row[0].toString().trim();
       const quantidade = Number(row[1]);
       const valorTotal = Number(row[2]) || 0; // não usado, mas mantido se precisar no futuro
       const unidade = row[3] ? row[3].toString().trim() : null; // idem
       const valorUnitario = Number(row[4]) || 0;
-      const valorVenda = Number(row[5]) || null;
-
+      const valorVenda = Number(row[5]) || valorUnitario;
+      
       if (isNaN(quantidade) || quantidade < 0) {
         console.warn(`Linha ${i + 1} ignorada: Quantidade inválida (${row[1]})`);
         continue;
