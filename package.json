@@ -1,26 +1,33 @@
 {
   "name": "gerenciador-vendas-estoque",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Sistema simples de gerenciamento de vendas e estoque com Node.js, Express e PostgreSQL",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "start:prod": "cross-env NODE_ENV=production node app.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcrypt": "^5.1.1",
     "body-parser": "^1.20.3",
+    "connect-pg-simple": "^9.0.0",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
     "express": "^4.21.0",
+    "express-rate-limit": "^7.4.0",
+    "express-session": "^1.18.0",
+    "helmet": "^7.1.0",
     "multer": "^1.4.5-lts.1",
-    "pg": "^8.13.0",
     "pdfkit": "^0.15.0",
+    "pg": "^8.13.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "nodemon": "^3.1.7"
   }
 }

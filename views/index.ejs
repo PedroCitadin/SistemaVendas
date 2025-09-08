@@ -35,9 +35,21 @@
             font-size: 3.5rem;
             margin-bottom: 1rem;
         }
+        .logout-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
     </style>
 </head>
 <body class="bg-light">
+
+    <!-- Botão de logout -->
+    <div class="logout-btn">
+        <a href="/logout" class="btn btn-outline-secondary">
+            <i class="bi bi-box-arrow-right"></i> Sair
+        </a>
+    </div>
 
     <div class="container text-center mt-5">
         <h1 class="display-5 mb-4">Bem-vindo ao Gerenciador de Vendas e Estoque!</h1>
@@ -60,6 +72,13 @@
                 <i class="bi bi-upload"></i>
                 <span>Carga de Produtos</span>
             </a>
+
+            <% if (usuario && usuario.role === 'admin') { %>
+            <a href="/usuarios/novo" class="btn btn-info menu-card">
+                <i class="bi bi-person-plus"></i>
+                <span>Criar Usuário</span>
+            </a>
+            <% } %>
         </div>
     </div>
 

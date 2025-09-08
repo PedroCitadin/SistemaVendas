@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Criar usuário admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-6">
+        <div class="card shadow">
+          <div class="card-body">
+            <h3 class="mb-3 text-center">Configuração inicial</h3>
+            <p class="text-muted text-center">Crie o primeiro usuário (admin).</p>
+            <% if (error) { %>
+              <div class="alert alert-danger"><%= error %></div>
+            <% } %>
+            <form method="post" action="/setup-admin">
+              <div class="mb-3">
+                <label class="form-label">Nome</label>
+                <input name="nome" class="form-control" required autofocus>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">E-mail</label>
+                <input name="email" type="email" class="form-control" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Senha</label>
+                <input name="senha" type="password" class="form-control" required minlength="6">
+              </div>
+
+              <% if (typeof requireKey !== 'undefined' && requireKey) { %>
+              <div class="mb-3">
+                <label class="form-label">Chave de acesso</label>
+                <input name="setup_key" type="password" class="form-control" placeholder="Informe a chave do .env" required>
+              </div>
+              <% } %>
+
+              <button class="btn btn-success w-100">Criar admin e entrar</button>
+            </form>
+            <div class="mt-3 text-center">
+              <a href="/login">Voltar ao login</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
