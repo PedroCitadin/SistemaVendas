@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 const bodyParser = require('body-parser');
+const { spawn } = require('child_process');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const PDFDocument = require('pdfkit');
@@ -857,6 +858,20 @@ app.post('/carga-produtos', requireAuth, upload.single('excelFile'), async (req,
   }
 });
 
+function abrirNavegador(url) {
+  const plataforma = process.platform;
+  if (plataforma === 'win32') {
+    spawn('cmd', ['/c', 'start', url]);
+  } else if (plataforma === 'darwin') {
+    spawn('open', [url]);
+  } else {
+    spawn('xdg-open', [url]);
+  }
+}
+
+
+
 app.listen(port, () => {
   console.log(`Servidor rodando em http://localhost:${port}`);
+  abrirNavegador(`http://localhost:${port}`);
 });
