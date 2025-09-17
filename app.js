@@ -350,7 +350,7 @@ app.get('/', requireAuth, (req, res) => {
 app.get('/produtos', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT p.id, p.nome, p.barcode, p.valor_unitario, p.valor_venda, p.descricao, e.quantidade
+      SELECT p.id, p.nome, p.barcode, p.valor_unitario, p.valor_venda, p.descricao, e.quantidade, p.etiquetas_impressas
       FROM produtos p
       LEFT JOIN estoque e ON p.id = e.id_produto
       ORDER BY p.nome ASC
@@ -437,7 +437,7 @@ app.get('/produtos/buscar', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Código de barras é obrigatório' });
     }
     const result = await pool.query(
-      `SELECT p.id, p.nome, p.barcode, p.valor_venda, p.valor_unitario, e.quantidade AS estoque
+      `SELECT p.id, p.nome, p.barcode, p.valor_venda, p.valor_unitario, e.quantidade, p.etiquetas_impressas AS estoque
        FROM produtos p
        LEFT JOIN estoque e ON p.id = e.id_produto
        WHERE p.barcode = $1 order by p.nome`,
@@ -452,7 +452,8 @@ app.get('/produtos/buscar', requireAuth, async (req, res) => {
       nome: produto.nome,
       barcode: produto.barcode,
       preco: getPreco(produto),
-      estoque: produto.estoque || 0
+      estoque: produto.estoque || 0,
+      etiquetas_impressas: produto.etiquetas_impressas
     });
   } catch (err) {
     console.error(err);
@@ -500,7 +501,12 @@ app.get('/produtos/etiqueta/:id', requireAuth, async (req, res) => {
 
 `;
     }
+    await pool.query(
+      'UPDATE produtos SET etiquetas_impressas = true WHERE id = $1',
+      [produtoId]
+    );
 
+    
     res.setHeader('Content-Disposition', `attachment; filename=etiqueta_${produtoId}.prn`);
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.send(prnContent);
@@ -510,6 +516,37 @@ app.get('/produtos/etiqueta/:id', requireAuth, async (req, res) => {
     res.status(500).send('Erro ao gerar etiqueta: ' + err.message);
   }
 });
+
+app.post('/produtos/toggle-impresso/:id', async (req, res) => {
+  try {
+    const produtoId = req.params.id;
+
+    // Pega status atual
+    const result = await pool.query(
+      'SELECT etiquetas_impressas FROM produtos WHERE id = $1',
+      [produtoId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).send('Produto não encontrado');
+    }
+
+    const atual = result.rows[0].etiquetas_impressas;
+    const novoStatus = !atual; // inverte
+
+    await pool.query(
+      'UPDATE produtos SET etiquetas_impressas = $1 WHERE id = $2',
+      [novoStatus, produtoId]
+    );
+
+    res.redirect('/produtos');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erro ao atualizar status de impressão');
+  }
+});
+
+
 
 // --------- Clientes ---------
 app.get('/clientes', requireAuth, async (req, res) => {

@@ -1,14 +1,20 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gerenciar Produtos</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    .btn-icon{display:inline-flex;align-items:center;gap:4px}
+    .btn-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px
+    }
   </style>
 </head>
+
 <body>
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -44,7 +50,8 @@
             </div>
             <div class="col-12">
               <label class="form-label">Descrição</label>
-              <textarea class="form-control" name="descricao" rows="2" placeholder="Ex: Caneta esferográfica azul..."></textarea>
+              <textarea class="form-control" name="descricao" rows="2"
+                placeholder="Ex: Caneta esferográfica azul..."></textarea>
             </div>
           </div>
           <div class="mt-3 text-end">
@@ -89,42 +96,60 @@
             <th>Valor Unitário</th>
             <th>Valor de Venda</th>
             <th>Quantidade</th>
+            <th>Status Impressão</th>
             <th>Ações</th>
           </tr>
         </thead>
         <tbody id="tBodyProdutos">
-          <% produtos.forEach(produto => { %>
+          <% produtos.forEach(produto=> { %>
             <tr>
-              <td class="cell-nome fw-semibold"><%= produto.nome %></td>
-              <td>R$ <%= parseFloat(produto.valor_unitario).toFixed(2) %></td>
-              <td><%= produto.valor_venda ? 'R$ ' + parseFloat(produto.valor_venda).toFixed(2) : '-' %></td>
-              <td><span class="badge bg-info"><%= produto.quantidade || 0 %></span></td>
+              <td class="cell-nome fw-semibold">
+                <%= produto.nome %>
+              </td>
+              <td>R$ <%= parseFloat(produto.valor_unitario).toFixed(2) %>
+              </td>
+              <td>
+                <%= produto.valor_venda ? 'R$ ' + parseFloat(produto.valor_venda).toFixed(2) : '-' %>
+              </td>
+              <td><span class="badge bg-info">
+                  <%= produto.quantidade || 0 %>
+                </span></td>
+              <td>
+                <% if (produto.etiquetas_impressas) { %>
+                  <span class="badge bg-success">✔️ Impresso</span>
+                  <% } else { %>
+                    <span class="badge bg-secondary">Não impresso</span>
+                    <% } %>
+              </td>
               <td class="d-flex gap-1">
+              <form action="/produtos/toggle-impresso/<%= produto.id %>" method="POST" onsubmit="return confirm('<%= produto.etiquetas_impressas ? "Deseja realmente marcar como NÃO impresso?" : "Deseja marcar como Impresso?" %>')">
+                <button type="submit" class="btn btn-sm <%= produto.etiquetas_impressas ? "btn-outline-secondary" : "btn-success" %> btn-icon">
+                <%= produto.etiquetas_impressas ? "↩️ Impresso" : "✅ Impresso" %>
+                </button>
+                </form>
+
                 <!-- EDITAR -->
-                <button
-                  type="button"
-                  class="btn btn-sm btn-warning btn-icon"
-                  data-bs-toggle="modal"
+                <button type="button" class="btn btn-sm btn-warning btn-icon" data-bs-toggle="modal"
                   data-bs-target="#editModal-<%= produto.id %>">
                   ✏️ Editar
                 </button>
 
                 <!-- EXCLUIR -->
-                <form action="/produtos/deletar/<%= produto.id %>" method="POST" onsubmit="return confirm('Tem certeza que deseja deletar?')">
+                <form action="/produtos/deletar/<%= produto.id %>" method="POST"
+                  onsubmit="return confirm('Tem certeza que deseja deletar?')">
                   <button type="submit" class="btn btn-sm btn-danger btn-icon">🗑️ Excluir</button>
                 </form>
 
                 <!-- ETIQUETAS (abre modal) -->
-                <button
-                  type="button"
-                  class="btn btn-sm btn-info btn-icon"
-                  data-bs-toggle="modal"
+                <button type="button" class="btn btn-sm btn-info btn-icon" data-bs-toggle="modal"
                   data-bs-target="#etiquetaModal-<%= produto.id %>">
                   🏷️ Etiquetas
                 </button>
+                
+
               </td>
             </tr>
-          <% }); %>
+            <% }); %>
         </tbody>
       </table>
     </div>
@@ -136,13 +161,15 @@
   </div>
 
   <!-- ========= MODAIS DE EDIÇÃO ========= -->
-  <% produtos.forEach(produto => { %>
-    <div class="modal fade" id="editModal-<%= produto.id %>" tabindex="-1" aria-labelledby="editLabel-<%= produto.id %>" aria-hidden="true">
+  <% produtos.forEach(produto=> { %>
+    <div class="modal fade" id="editModal-<%= produto.id %>" tabindex="-1" aria-labelledby="editLabel-<%= produto.id %>"
+      aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
           <form action="/produtos/editar/<%= produto.id %>" method="POST">
             <div class="modal-header">
-              <h5 class="modal-title" id="editLabel-<%= produto.id %>">✏️ Editar Produto #<%= produto.id %></h5>
+              <h5 class="modal-title" id="editLabel-<%= produto.id %>">✏️ Editar Produto #<%= produto.id %>
+              </h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
@@ -153,15 +180,18 @@
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Valor Unitário</label>
-                  <input type="number" step="0.01" class="form-control" name="valor_unitario" value="<%= produto.valor_unitario %>" required>
+                  <input type="number" step="0.01" class="form-control" name="valor_unitario"
+                    value="<%= produto.valor_unitario %>" required>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Valor de Venda</label>
-                  <input type="number" step="0.01" class="form-control" name="valor_venda" value="<%= produto.valor_venda ?? '' %>">
+                  <input type="number" step="0.01" class="form-control" name="valor_venda"
+                    value="<%= produto.valor_venda ?? '' %>">
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Quantidade em Estoque</label>
-                  <input type="number" class="form-control" name="quantidade" value="<%= produto.quantidade || 0 %>" min="0">
+                  <input type="number" class="form-control" name="quantidade" value="<%= produto.quantidade || 0 %>"
+                    min="0">
                 </div>
                 <div class="col-12">
                   <label class="form-label">Descrição</label>
@@ -177,194 +207,195 @@
         </div>
       </div>
     </div>
-  <% }); %>
-  <!-- ========= /MODAIS ========= -->
+    <% }); %>
+      <!-- ========= /MODAIS ========= -->
 
-  <!-- ========= MODAIS DE ETIQUETAS ========= -->
-  <% produtos.forEach(produto => { %>
-    <div class="modal fade etiqueta-modal" id="etiquetaModal-<%= produto.id %>" tabindex="-1" aria-labelledby="etiquetaLabel-<%= produto.id %>" aria-hidden="true" data-estoque="<%= produto.quantidade || 0 %>">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <form action="/produtos/etiqueta/<%= produto.id %>" method="GET">
-            <div class="modal-header">
-              <h5 class="modal-title" id="etiquetaLabel-<%= produto.id %>">🏷️ Etiquetas para <%= produto.nome %></h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-            </div>
-
-            <div class="modal-body">
-              <div class="mb-3">
-                <span class="text-muted">Estoque atual:</span>
-                <span class="badge bg-info ms-1"><%= produto.quantidade || 0 %></span>
-              </div>
-
-              <div class="form-check mb-2">
-                <input class="form-check-input opt-estoque" type="radio" name="modo-<%= produto.id %>" id="optEstoque-<%= produto.id %>" checked>
-                <label class="form-check-label" for="optEstoque-<%= produto.id %>">
-                  Imprimir a <strong>quantidade total do estoque</strong>
-                </label>
-              </div>
-
-              <div class="form-check mb-3">
-                <input class="form-check-input opt-personalizada" type="radio" name="modo-<%= produto.id %>" id="optPersonalizada-<%= produto.id %>">
-                <label class="form-check-label" for="optPersonalizada-<%= produto.id %>">
-                  Usar <strong>quantidade personalizada</strong>
-                </label>
-              </div>
-
-              <div class="row g-2 align-items-end">
-                <div class="col-8">
-                  <label for="inpQtd-<%= produto.id %>" class="form-label">Quantidade</label>
-                  <input
-                    type="number"
-                    class="form-control inp-qtd"
-                    id="inpQtd-<%= produto.id %>"
-                    name="quantidade"
-                    value="<%= produto.quantidade || 0 %>"
-                    min="1"
-                    required
-                    disabled
-                  >
+      <!-- ========= MODAIS DE ETIQUETAS ========= -->
+      <% produtos.forEach(produto=> { %>
+        <div class="modal fade etiqueta-modal" id="etiquetaModal-<%= produto.id %>" tabindex="-1"
+          aria-labelledby="etiquetaLabel-<%= produto.id %>" aria-hidden="true"
+          data-estoque="<%= produto.quantidade || 0 %>">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form action="/produtos/etiqueta/<%= produto.id %>" method="GET">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="etiquetaLabel-<%= produto.id %>">🏷️ Etiquetas para <%= produto.nome %>
+                  </h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
                 </div>
-                <div class="col-4">
-                  <label class="form-label d-block">&nbsp;</label>
-                  <button type="button" class="btn btn-outline-secondary w-100 btn-fill-estoque">Usar estoque</button>
-                </div>
-              </div>
 
-              <!-- Opcional: dica sobre impressoras 3-em-3
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <span class="text-muted">Estoque atual:</span>
+                    <span class="badge bg-info ms-1">
+                      <%= produto.quantidade || 0 %>
+                    </span>
+                  </div>
+
+                  <div class="form-check mb-2">
+                    <input class="form-check-input opt-estoque" type="radio" name="modo-<%= produto.id %>"
+                      id="optEstoque-<%= produto.id %>" checked>
+                    <label class="form-check-label" for="optEstoque-<%= produto.id %>">
+                      Imprimir a <strong>quantidade total do estoque</strong>
+                    </label>
+                  </div>
+
+                  <div class="form-check mb-3">
+                    <input class="form-check-input opt-personalizada" type="radio" name="modo-<%= produto.id %>"
+                      id="optPersonalizada-<%= produto.id %>">
+                    <label class="form-check-label" for="optPersonalizada-<%= produto.id %>">
+                      Usar <strong>quantidade personalizada</strong>
+                    </label>
+                  </div>
+
+                  <div class="row g-2 align-items-end">
+                    <div class="col-8">
+                      <label for="inpQtd-<%= produto.id %>" class="form-label">Quantidade</label>
+                      <input type="number" class="form-control inp-qtd" id="inpQtd-<%= produto.id %>" name="quantidade"
+                        value="<%= produto.quantidade || 0 %>" min="1" required disabled>
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label d-block">&nbsp;</label>
+                      <button type="button" class="btn btn-outline-secondary w-100 btn-fill-estoque">Usar
+                        estoque</button>
+                    </div>
+                  </div>
+
+                  <!-- Opcional: dica sobre impressoras 3-em-3
               <div class="form-text mt-2">
                 Dica: se sua impressora imprime 3 por vez, você pode ajustar a quantidade para múltiplos de 3.
               </div> -->
-            </div>
+                </div>
 
-            <div class="modal-footer">
-              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-              <button type="submit" class="btn btn-primary">🖨️ Imprimir</button>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                  <button type="submit" class="btn btn-primary">🖨️ Imprimir</button>
+                </div>
+              </form>
             </div>
-          </form>
+          </div>
         </div>
-      </div>
-    </div>
-  <% }); %>
-  <!-- ========= /MODAIS DE ETIQUETAS ========= -->
+        <% }); %>
+          <!-- ========= /MODAIS DE ETIQUETAS ========= -->
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    (function () {
-      // ====== Busca + Paginação ======
-      const input = document.getElementById('buscarNome');
-      const btnLimpar = document.getElementById('btnLimparBusca');
-      const tBody = document.getElementById('tBodyProdutos');
-      const rows = Array.from(tBody.querySelectorAll('tr'));
-      const countEl = document.getElementById('resultadoCount');
-      const pagination = document.getElementById('pagination');
-      const selectItens = document.getElementById('itensPorPagina');
+          <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+          <script>
+            (function () {
+              // ====== Busca + Paginação ======
+              const input = document.getElementById('buscarNome');
+              const btnLimpar = document.getElementById('btnLimparBusca');
+              const tBody = document.getElementById('tBodyProdutos');
+              const rows = Array.from(tBody.querySelectorAll('tr'));
+              const countEl = document.getElementById('resultadoCount');
+              const pagination = document.getElementById('pagination');
+              const selectItens = document.getElementById('itensPorPagina');
 
-      let currentPage = 1;
-      let itensPorPagina = parseInt(selectItens.value);
+              let currentPage = 1;
+              let itensPorPagina = parseInt(selectItens.value);
 
-      const normalize = (s) =>
-        (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+              const normalize = (s) =>
+                (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-      const render = () => {
-        const q = normalize(input?.value?.trim() || '');
-        const filtrados = rows.filter(tr => {
-          const nome = normalize(tr.querySelector('.cell-nome')?.textContent ?? '');
-          return nome.includes(q);
-        });
+              const render = () => {
+                const q = normalize(input?.value?.trim() || '');
+                const filtrados = rows.filter(tr => {
+                  const nome = normalize(tr.querySelector('.cell-nome')?.textContent ?? '');
+                  return nome.includes(q);
+                });
 
-        const total = filtrados.length;
-        const totalPages = Math.ceil(total / itensPorPagina) || 1;
-        if (currentPage > totalPages) currentPage = totalPages;
+                const total = filtrados.length;
+                const totalPages = Math.ceil(total / itensPorPagina) || 1;
+                if (currentPage > totalPages) currentPage = totalPages;
 
-        rows.forEach(tr => tr.style.display = 'none');
+                rows.forEach(tr => tr.style.display = 'none');
 
-        const start = (currentPage - 1) * itensPorPagina;
-        const end = start + itensPorPagina;
-        filtrados.slice(start, end).forEach(tr => tr.style.display = '');
+                const start = (currentPage - 1) * itensPorPagina;
+                const end = start + itensPorPagina;
+                filtrados.slice(start, end).forEach(tr => tr.style.display = '');
 
-        countEl.textContent = `${total} produto(s) encontrado(s) | Página ${currentPage} de ${totalPages}`;
+                countEl.textContent = `${total} produto(s) encontrado(s) | Página ${currentPage} de ${totalPages}`;
 
-        pagination.innerHTML = '';
-        const addPageItem = (page, label = page, active = false, disabled = false) => {
-          const li = document.createElement('li');
-          li.className = `page-item ${active ? 'active' : ''} ${disabled ? 'disabled' : ''}`;
-          li.innerHTML = `<a class="page-link" href="#">${label}</a>`;
-          li.onclick = (e) => {
-            e.preventDefault();
-            if (!disabled) {
-              currentPage = page;
+                pagination.innerHTML = '';
+                const addPageItem = (page, label = page, active = false, disabled = false) => {
+                  const li = document.createElement('li');
+                  li.className = `page-item ${active ? 'active' : ''} ${disabled ? 'disabled' : ''}`;
+                  li.innerHTML = `<a class="page-link" href="#">${label}</a>`;
+                  li.onclick = (e) => {
+                    e.preventDefault();
+                    if (!disabled) {
+                      currentPage = page;
+                      render();
+                    }
+                  };
+                  pagination.appendChild(li);
+                };
+
+                addPageItem(currentPage - 1, '«', false, currentPage === 1);
+                for (let i = 1; i <= totalPages; i++) {
+                  if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    addPageItem(i, i, i === currentPage);
+                  } else if (i === currentPage - 3 || i === currentPage + 3) {
+                    const li = document.createElement('li');
+                    li.className = 'page-item disabled';
+                    li.innerHTML = `<span class="page-link">...</span>`;
+                    pagination.appendChild(li);
+                  }
+                }
+                addPageItem(currentPage + 1, '»', false, currentPage === totalPages);
+              };
+
+              input?.addEventListener('input', () => { currentPage = 1; render(); });
+              btnLimpar?.addEventListener('click', () => { input.value = ''; currentPage = 1; render(); });
+              selectItens.addEventListener('change', () => {
+                itensPorPagina = parseInt(selectItens.value);
+                currentPage = 1;
+                render();
+              });
+
               render();
-            }
-          };
-          pagination.appendChild(li);
-        };
 
-        addPageItem(currentPage - 1, '«', false, currentPage === 1);
-        for (let i = 1; i <= totalPages; i++) {
-          if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-            addPageItem(i, i, i === currentPage);
-          } else if (i === currentPage - 3 || i === currentPage + 3) {
-            const li = document.createElement('li');
-            li.className = 'page-item disabled';
-            li.innerHTML = `<span class="page-link">...</span>`;
-            pagination.appendChild(li);
-          }
-        }
-        addPageItem(currentPage + 1, '»', false, currentPage === totalPages);
-      };
+              // ====== Lógica dos Modais de Etiquetas ======
+              // Ativa/desativa campo de quantidade conforme a opção escolhida
+              document.querySelectorAll('.etiqueta-modal').forEach(modalEl => {
+                const estoque = parseInt(modalEl.getAttribute('data-estoque') || '0', 10);
+                const optEstoque = modalEl.querySelector('.opt-estoque');
+                const optPersonalizada = modalEl.querySelector('.opt-personalizada');
+                const inpQtd = modalEl.querySelector('.inp-qtd');
+                const btnFill = modalEl.querySelector('.btn-fill-estoque');
 
-      input?.addEventListener('input', () => { currentPage = 1; render(); });
-      btnLimpar?.addEventListener('click', () => { input.value = ''; currentPage = 1; render(); });
-      selectItens.addEventListener('change', () => {
-        itensPorPagina = parseInt(selectItens.value);
-        currentPage = 1;
-        render();
-      });
+                const applyState = () => {
+                  if (optEstoque.checked) {
+                    inpQtd.value = Math.max(estoque, 1);   // se estoque for 0, garante 1
+                    inpQtd.setAttribute('disabled', 'disabled');
+                  } else {
+                    inpQtd.removeAttribute('disabled');
+                    if (!inpQtd.value || parseInt(inpQtd.value, 10) < 1) {
+                      inpQtd.value = 1;
+                    }
+                  }
+                };
 
-      render();
+                // Ao abrir o modal, garantir o estado correto
+                modalEl.addEventListener('shown.bs.modal', applyState);
 
-      // ====== Lógica dos Modais de Etiquetas ======
-      // Ativa/desativa campo de quantidade conforme a opção escolhida
-      document.querySelectorAll('.etiqueta-modal').forEach(modalEl => {
-        const estoque = parseInt(modalEl.getAttribute('data-estoque') || '0', 10);
-        const optEstoque = modalEl.querySelector('.opt-estoque');
-        const optPersonalizada = modalEl.querySelector('.opt-personalizada');
-        const inpQtd = modalEl.querySelector('.inp-qtd');
-        const btnFill = modalEl.querySelector('.btn-fill-estoque');
+                optEstoque.addEventListener('change', applyState);
+                optPersonalizada.addEventListener('change', applyState);
 
-        const applyState = () => {
-          if (optEstoque.checked) {
-            inpQtd.value = Math.max(estoque, 1);   // se estoque for 0, garante 1
-            inpQtd.setAttribute('disabled', 'disabled');
-          } else {
-            inpQtd.removeAttribute('disabled');
-            if (!inpQtd.value || parseInt(inpQtd.value, 10) < 1) {
-              inpQtd.value = 1;
-            }
-          }
-        };
+                // Botão "Usar estoque"
+                btnFill.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  optEstoque.checked = true;
+                  applyState();
+                });
 
-        // Ao abrir o modal, garantir o estado correto
-        modalEl.addEventListener('shown.bs.modal', applyState);
-
-        optEstoque.addEventListener('change', applyState);
-        optPersonalizada.addEventListener('change', applyState);
-
-        // Botão "Usar estoque"
-        btnFill.addEventListener('click', (e) => {
-          e.preventDefault();
-          optEstoque.checked = true;
-          applyState();
-        });
-
-        // Sanitiza a entrada personalizada
-        inpQtd.addEventListener('input', () => {
-          const v = parseInt(inpQtd.value || '1', 10);
-          if (isNaN(v) || v < 1) inpQtd.value = 1;
-        });
-      });
-    })();
-  </script>
+                // Sanitiza a entrada personalizada
+                inpQtd.addEventListener('input', () => {
+                  const v = parseInt(inpQtd.value || '1', 10);
+                  if (isNaN(v) || v < 1) inpQtd.value = 1;
+                });
+              });
+            })();
+          </script>
 </body>
+
 </html>
