@@ -5,7 +5,7 @@ const bodyParser = require('body-parser');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const PDFDocument = require('pdfkit');
-
+const router = express.Router();
 // === Segurança e Sessão ===
 const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
@@ -437,7 +437,7 @@ app.get('/produtos/buscar', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Código de barras é obrigatório' });
     }
     const result = await pool.query(
-      `SELECT p.id, p.nome, p.barcode, p.valor_venda, p.valor_unitario, e.quantidade, p.etiquetas_impressas AS estoque
+      `SELECT p.id, p.nome, p.barcode, p.valor_venda, p.valor_unitario, e.quantidade AS estoque, p.etiquetas_impressas 
        FROM produtos p
        LEFT JOIN estoque e ON p.id = e.id_produto
        WHERE p.barcode = $1 order by p.nome`,
@@ -667,24 +667,65 @@ app.post('/clientes/novo', requireAuth, async (req, res) => {
 });
 
 // --------- Vendas ---------
+// --------- Vendas (lista com filtros + status normalizado) ---------
 app.get('/vendas', requireAuth, async (req, res) => {
   try {
-    const vendasResult = await pool.query(`
-      SELECT v.id, v.data_venda, v.total, c.nome AS cliente_nome
+    const cliente = (req.query.cliente || '').trim();
+    const status = (req.query.status || '').trim().toUpperCase(); // '', 'CONCLUIDA', 'CANCELADA'
+
+    const where = [];
+    const params = [];
+    let i = 1;
+
+    if (cliente) {
+      const cpfDigits = cliente.replace(/\D/g, '');
+      where.push(`(c.nome ILIKE $${i} OR regexp_replace(c.cpf, '[^0-9]', '', 'g') LIKE $${i + 1})`);
+      params.push(`%${cliente}%`, `%${cpfDigits}%`);
+      i += 2;
+    }
+
+    if (status === 'CANCELADA') {
+      where.push(`UPPER(v.status) LIKE 'CANCEL%'`);
+    } else if (status === 'CONCLUIDA') {
+      where.push(`(v.status IS NULL OR UPPER(v.status) NOT LIKE 'CANCEL%')`);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const rs = await pool.query(
+      `
+      SELECT
+        v.id,
+        v.data_venda,
+        v.total,
+        CASE
+          WHEN v.status IS NULL THEN 'CONCLUIDA'
+          WHEN UPPER(v.status) LIKE 'CANCEL%' THEN 'CANCELADA'
+          ELSE v.status
+        END AS status,
+        c.nome AS cliente_nome
       FROM vendas v
-      LEFT JOIN clientes c ON v.id_cliente = c.id
-      ORDER BY v.id DESC
-    `);
+      LEFT JOIN clientes c ON c.id = v.id_cliente
+      ${whereSql}
+      ORDER BY v.data_venda DESC NULLS LAST, v.id DESC
+      LIMIT 200
+      `,
+      params
+    );
+
     res.render('vendas', {
-      vendas: vendasResult.rows,
+      vendas: rs.rows,
       error: req.query.error || '',
-      formData: req.query.formData ? JSON.parse(decodeURIComponent(req.query.formData)) : {}
+      formData: req.query.formData ? JSON.parse(decodeURIComponent(req.query.formData)) : {},
+      filtros: { cliente, status: status || '' }
     });
   } catch (err) {
     console.error(err);
     res.status(500).send('Erro ao listar vendas');
   }
 });
+
+
 
 app.post('/vendas', requireAuth, async (req, res) => {
   const { id_cliente, itens } = req.body;
@@ -750,46 +791,347 @@ app.post('/vendas', requireAuth, async (req, res) => {
   }
 });
 
+// Detalhes da venda (JSON para o modal), com status normalizado
+app.get('/vendas/:id/json', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const v = await pool.query(
+      `
+      SELECT
+        v.id,
+        v.data_venda,
+        v.total,
+        CASE
+          WHEN v.status IS NULL THEN 'CONCLUIDA'
+          WHEN UPPER(v.status) LIKE 'CANCEL%' THEN 'CANCELADA'
+          ELSE v.status
+        END AS status,
+        c.nome AS cliente_nome
+      FROM vendas v
+      LEFT JOIN clientes c ON c.id = v.id_cliente
+      WHERE v.id = $1
+      `,
+      [id]
+    );
+
+    if (v.rowCount === 0) return res.status(404).json({ error: 'Venda não encontrada' });
+
+    const itens = await pool.query(
+      `
+      SELECT p.nome, iv.quantidade, iv.preco_unitario
+      FROM itens_venda iv
+      JOIN produtos p ON p.id = iv.id_produto
+      WHERE iv.id_venda = $1
+      ORDER BY iv.id ASC
+      `,
+      [id]
+    );
+
+    res.json({ ...v.rows[0], itens: itens.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao carregar venda' });
+  }
+});
+
+
+// Reverter venda (cancelar + devolver estoque) — já no formato app.post
+app.post('/vendas/:id/reverter', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const v = await client.query(
+      `SELECT id, status, id_cliente, total, data_venda
+       FROM vendas WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+    if (v.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Venda não encontrada.' });
+    }
+    const venda = v.rows[0];
+
+    if ((venda.status || '').toUpperCase().startsWith('CANCEL')) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Venda já está cancelada.' });
+    }
+
+    const itens = await client.query(
+      `SELECT id_produto, quantidade
+       FROM itens_venda WHERE id_venda = $1`,
+      [id]
+    );
+
+    for (const it of itens.rows) {
+      await client.query(
+        'UPDATE estoque SET quantidade = COALESCE(quantidade,0) + $1 WHERE id_produto = $2',
+        [it.quantidade, it.id_produto]
+      );
+    }
+
+    await client.query(`UPDATE vendas SET status = 'CANCELADA' WHERE id = $1`, [id]);
+
+    let cliente_nome = null;
+    if (venda.id_cliente) {
+      const c = await client.query('SELECT nome FROM clientes WHERE id = $1', [venda.id_cliente]);
+      cliente_nome = c.rowCount ? c.rows[0].nome : null;
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      id: venda.id,
+      data_venda: venda.data_venda,
+      total: venda.total,
+      status: 'CANCELADA',
+      cliente_nome
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao reverter a venda.' });
+  } finally {
+    client.release();
+  }
+});
+
+
 // Recibo PDF
+// Recibo estilo "talão", com linha que cresce conforme a descrição
 app.get('/vendas/recibo/:id', requireAuth, async (req, res) => {
+  const mm = v => v * 2.83465;
+  const BRL = v => `R$ ${Number(v || 0).toFixed(2)}`;
+  const maskCPF = v => (v || '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+
   try {
     const vendaId = req.params.id;
+
+    // Consulta venda
     const vendaResult = await pool.query(`
       SELECT v.id, v.data_venda, v.total, c.nome AS cliente_nome, c.cpf AS cliente_cpf
       FROM vendas v
       LEFT JOIN clientes c ON v.id_cliente = c.id
       WHERE v.id = $1
     `, [vendaId]);
+    if (vendaResult.rows.length === 0) throw new Error('Venda não encontrada');
+
     const itensResult = await pool.query(`
       SELECT p.nome, i.quantidade, i.preco_unitario
       FROM itens_venda i
       JOIN produtos p ON i.id_produto = p.id
       WHERE i.id_venda = $1
+      ORDER BY i.id
     `, [vendaId]);
-
-    if (vendaResult.rows.length === 0) throw new Error('Venda não encontrada');
 
     const venda = vendaResult.rows[0];
     const itens = itensResult.rows;
 
-    const doc = new PDFDocument();
-    res.setHeader('Content-Disposition', `attachment; filename=recibo_venda_${vendaId}.pdf`);
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({
+      size: 'A5',
+      margins: { top: mm(10), left: mm(10), right: mm(10), bottom: mm(12) }
+    });
+
+    res.setHeader('Content-Disposition', `inline; filename=recibo_venda_${vendaId}.pdf`);
     res.setHeader('Content-Type', 'application/pdf');
     doc.pipe(res);
 
-    doc.fontSize(20).text('Recibo de Venda', { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`Venda ID: ${venda.id}`);
-    doc.text(`Data: ${new Date(venda.data_venda).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`);
-    doc.text(`Cliente: ${venda.cliente_nome || 'Sem cliente'}`);
-    doc.text(`CPF: ${venda.cliente_cpf ? venda.cliente_cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '-'}`);
-    doc.text(`Total: R$ ${parseFloat(venda.total).toFixed(2)}`);
-    doc.moveDown();
-    doc.text('Itens da Venda:', { underline: true });
-    itens.forEach(item => {
-      const subtotal = (item.quantidade * item.preco_unitario).toFixed(2);
-      doc.text(`${item.quantidade}x ${item.nome} - R$ ${parseFloat(item.preco_unitario).toFixed(2)} (Subtotal: R$ ${subtotal})`);
-    });
+    const primary = '#0f5132';
+    const lineGray = '#555';
+    const lightGray = '#f2f2f2';
+    const fs = { xs: 8, sm: 9, base: 10, md: 11, lg: 12, xl: 14 };
+
+    const page = {
+      x: doc.page.margins.left,
+      y: doc.page.margins.top,
+      w: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+      h: doc.page.height - doc.page.margins.top - doc.page.margins.bottom
+    };
+
+    // Cabeçalho
+    function drawHeader() {
+      const h = mm(26);
+      doc.save().rect(page.x, page.y, page.w, h).fill(lightGray).restore();
+
+      doc.fillColor(primary).fontSize(fs.lg).font('Helvetica-Bold')
+        .text('Associação Hospitalar Nossa Senhora de Fátima', page.x, page.y + mm(2), {
+          width: page.w - mm(35), align: 'center'
+        });
+
+      doc.fillColor('#000').font('Helvetica').fontSize(fs.sm)
+        .text('Rua Frei Protásio, 431 • Centro • Praia Grande/SC',
+              page.x, page.y + mm(12),
+              { width: page.w - mm(35), align: 'center' })
+        .text('Fone: (48) 3532-0139',
+              page.x, page.y + mm(17),
+              { width: page.w - mm(35), align: 'center' })
+        .text('CNPJ: 07.420.153/0001-37',
+              page.x, page.y + mm(22),
+              { width: page.w - mm(35), align: 'center' });
+
+      const boxW = mm(30), boxH = mm(14);
+      const boxX = page.x + page.w - boxW;
+      const boxY = page.y + mm(6);
+
+      doc.roundedRect(boxX, boxY, boxW, boxH, 3)
+        .strokeColor(primary).lineWidth(1).stroke();
+
+      doc.font('Helvetica').fontSize(fs.xs).fillColor('#000')
+        .text('Nº', boxX + mm(2), boxY + mm(2));
+      doc.font('Helvetica-Bold').fontSize(fs.md)
+        .text(String(venda.id).padStart(4, '0'), boxX, boxY + mm(5), { width: boxW, align: 'center' });
+
+      return page.y + h; // retorna o fim do cabeçalho
+    }
+
+    // Bloco de dados da venda
+    function drawMeta(yStart) {
+      const y = yStart + mm(5); // espaço depois do cabeçalho
+      const lh = mm(6);
+      const dataStr = new Date(venda.data_venda).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      const cpfStr = venda.cliente_cpf ? maskCPF(venda.cliente_cpf) : '-';
+
+      doc.font('Helvetica').fontSize(fs.base).fillColor('#000')
+        .text('Data:', page.x, y)
+        .font('Helvetica-Bold').text(dataStr, page.x + mm(18), y);
+
+      doc.font('Helvetica').text('Cliente:', page.x + mm(60), y)
+        .font('Helvetica-Bold').text(venda.cliente_nome || 'Sem cliente', page.x + mm(80), y);
+
+      doc.font('Helvetica').text('CPF:', page.x, y + lh)
+        .font('Helvetica-Bold').text(cpfStr, page.x + mm(18), y + lh);
+
+      doc.font('Helvetica').text('Atendente:', page.x + mm(60), y + lh)
+        .font('Helvetica-Bold').text((req.user && req.user.nome) || '-', page.x + mm(80), y + lh);
+
+      doc.moveTo(page.x, y + lh * 2.2).lineTo(page.x + page.w, y + lh * 2.2)
+        .strokeColor(lineGray).lineWidth(0.5).stroke();
+
+      return y + lh * 2.5; // retorna onde a tabela deve começar
+    }
+    // Tabela com altura dinâmica por linha
+    function drawTable(startY) {
+      // larguras das colunas
+      const col = {
+        qtd: mm(16),
+        desc: page.w - mm(16 + 28 + 32),
+        unit: mm(28),
+        total: mm(32)
+      };
+
+      // cabeçalho
+      const headerH = mm(8);
+      doc.save().rect(page.x, startY, page.w, headerH).fill('#e9ecef').restore();
+      doc.lineWidth(0.8).strokeColor(lineGray).rect(page.x, startY, page.w, headerH).stroke();
+
+      doc.font('Helvetica-Bold').fontSize(fs.sm).fillColor('#000')
+        .text('Quant', page.x + mm(2), startY + mm(2), { width: col.qtd - mm(4), align: 'left' })
+        .text('DESCRIÇÃO DO ITEM', page.x + col.qtd + mm(2), startY + mm(2), { width: col.desc - mm(4), align: 'left' })
+        .text('VL UN', page.x + col.qtd + col.desc + mm(2), startY + mm(2), { width: col.unit - mm(4), align: 'right' })
+        .text('VALOR TOTAL', page.x + col.qtd + col.desc + col.unit + mm(2), startY + mm(2), { width: col.total - mm(4), align: 'right' });
+
+      let y = startY + headerH;
+      const minRowH = mm(7.5);
+      const bottomLimit = page.y + page.h - mm(45); // espaço para total e assinaturas
+      let totalGeral = 0;
+
+      // função para desenhar cada item respeitando altura do texto
+      const drawRow = (item) => {
+        const subtotal = Number(item.quantidade) * Number(item.preco_unitario);
+        totalGeral += subtotal;
+
+        const desc = String(item.nome || '');
+        const descOptions = { width: col.desc - mm(4), align: 'left' };
+        // mede a altura necessária para a descrição
+        const textHeight = Math.ceil(doc.heightOfString(desc, descOptions));
+        // altura da linha = maior entre mínimo e texto + margenzinha
+        const rowH = Math.max(minRowH, textHeight + mm(2));
+
+        // quebra de página, se necessário
+        if (y + rowH > bottomLimit) {
+          // desenha total parcial antes de quebrar (opcional; pode remover se não quiser)
+          drawTotals(y, totalGeral);
+          doc.addPage();
+
+          // recomputa área útil
+          page.x = doc.page.margins.left;
+          page.y = doc.page.margins.top;
+          page.w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+          page.h = doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
+
+          drawHeader();
+          const metaEnd = drawMeta(page.y + mm(24));
+          // reabrir cabeçalho da tabela na nova página
+          y = drawTable(metaEnd + mm(3)).y; // drawTable retorna o y atual; mas aqui só queremos o topo de linhas
+        }
+
+        // linha horizontal guia
+        doc.strokeColor('#ddd').lineWidth(0.5).moveTo(page.x, y).lineTo(page.x + page.w, y).stroke();
+
+        // células
+        doc.font('Helvetica').fontSize(fs.sm).fillColor('#000')
+          .text(String(item.quantidade), page.x + mm(2), y + mm(1), { width: col.qtd - mm(4) });
+
+        doc.text(desc, page.x + col.qtd + mm(2), y + mm(1), descOptions);
+
+        doc.text(BRL(item.preco_unitario), page.x + col.qtd + col.desc, y + mm(1), { width: col.unit - mm(2), align: 'right' });
+        doc.text(BRL(subtotal), page.x + col.qtd + col.desc + col.unit, y + mm(1), { width: col.total - mm(2), align: 'right' });
+
+        // borda da linha
+        doc.strokeColor(lineGray).lineWidth(0.6).rect(page.x, y, page.w, rowH).stroke();
+        // colunas verticais
+        doc.moveTo(page.x + col.qtd, y).lineTo(page.x + col.qtd, y + rowH).stroke();
+        doc.moveTo(page.x + col.qtd + col.desc, y).lineTo(page.x + col.qtd + col.desc, y + rowH).stroke();
+        doc.moveTo(page.x + col.qtd + col.desc + col.unit, y).lineTo(page.x + col.qtd + col.desc + col.unit, y + rowH).stroke();
+
+        y += rowH;
+      };
+
+      itens.forEach(drawRow);
+
+      return { y, total: totalGeral };
+    }
+
+    function drawTotals(y, total) {
+      const labelW = page.w - mm(40);
+      doc.font('Helvetica-Bold').fontSize(fs.md)
+        .text('TOTAL', page.x + labelW, y + mm(2), { width: mm(20), align: 'right' })
+        .text(BRL(total), page.x + labelW + mm(20), y + mm(2), { width: mm(20), align: 'right' });
+      return y + mm(10);
+    }
+
+    function drawSignatures(y) {
+      const lineY = y + mm(14);
+      const colW = (page.w - mm(8)) / 2;
+
+      doc.strokeColor(lineGray).lineWidth(0.8)
+        .moveTo(page.x + mm(4), lineY).lineTo(page.x + mm(4) + colW, lineY).stroke()
+        .moveTo(page.x + mm(8) + colW, lineY).lineTo(page.x + mm(8) + colW + colW, lineY).stroke();
+
+      doc.font('Helvetica').fontSize(fs.sm)
+        .text('Assinatura do Responsável', page.x + mm(4), lineY + mm(1), { width: colW, align: 'center' })
+        .text('Assinatura do Cliente', page.x + mm(8) + colW, lineY + mm(1), { width: colW, align: 'center' });
+
+      return lineY + mm(10);
+    }
+
+    function drawFooter(y) {
+      const text = 'AS MERCADORIAS NÃO PODERÃO SER UTILIZADAS PARA VENDA NO COMÉRCIO, SOB PENA ' +
+                   'DE APREENSÃO POR PARTE DAS AUTORIDADES COMPETENTES.';
+      doc.font('Helvetica').fontSize(fs.xs).fillColor('#666')
+        .text(text, page.x, y + mm(2), { width: page.w, align: 'justify' });
+    }
+
+    // Renderização
+    drawHeader();
+    const metaEnd = drawMeta(page.y + mm(24));
+    const table = drawTable(metaEnd + mm(3));
+    const afterTotal = drawTotals(table.y + mm(2), table.total);
+    const afterSign = drawSignatures(afterTotal + mm(2));
+    drawFooter(afterSign);
 
     doc.end();
   } catch (err) {
