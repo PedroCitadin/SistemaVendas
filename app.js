@@ -1199,6 +1199,207 @@ app.post('/carga-produtos', requireAuth, upload.single('excelFile'), async (req,
   }
 });
 
+// === Relatórios: Menu ===
+app.get('/relatorios',  requireAuth,  (req, res) => {
+  res.render('relatorios');
+});
+
+app.get('/relatorios/vendas-geral', async (req, res) => {
+  try {
+    // Total vendido
+    const totalQuery = `SELECT COALESCE(SUM(v.total), 0) AS total_vendido FROM vendas v`;
+    const { rows: totalRows } = await pool.query(totalQuery);
+    const totalVendido = Number(totalRows[0]?.total_vendido || 0);
+
+    // Lista de vendas
+    const listaQuery = `
+      SELECT 
+        v.id,
+        COALESCE(v.total, 0) AS total,
+        COALESCE(c.nome, 'Sem cliente') AS cliente
+      FROM vendas v
+      LEFT JOIN clientes c ON c.id = v.id_cliente
+      ORDER BY v.id DESC
+    `;
+    const { rows: vendas } = await pool.query(listaQuery);
+
+    // Configura PDF
+    const doc = new PDFDocument({ size: 'A4', margin: 36 });
+    const fileName = `relatorio-vendas-geral.pdf`;
+
+    // Força download
+    res.attachment(fileName);
+    res.setHeader('Content-Type', 'application/pdf');
+    doc.pipe(res);
+
+    const moedaBR = v => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const dataBR = s => { const d = new Date(s); return isNaN(d) ? String(s) : d.toLocaleString('pt-BR'); };
+
+    // Cabeçalho
+    const header = () => {
+      doc.fontSize(18).font('Helvetica-Bold').text('Relatório Geral de Vendas');
+      doc.moveDown(0.6);
+      doc.fontSize(12).font('Helvetica-Bold').fillColor('#000').text(`Total vendido: ${moedaBR(totalVendido)}`);
+      const x0 = doc.page.margins.left, x1 = doc.page.width - doc.page.margins.right;
+      doc.moveDown(0.6).moveTo(x0, doc.y).lineTo(x1, doc.y).strokeColor('#ccc').stroke().moveDown(0.6);
+    };
+
+    const cols = [
+      { key: 'id', label: 'ID', width: 60, align: 'left' },
+      { key: 'cliente', label: 'Cliente', width: 280, align: 'left' },
+      { key: 'total', label: 'Valor', width: 120, align: 'right' }
+    ];
+    const rowH = 18;
+    const bottom = () => doc.page.height - doc.page.margins.bottom - 10;
+
+    const printTableHeader = () => {
+      doc.font('Helvetica-Bold').fontSize(11);
+      let x = doc.page.margins.left; const y = doc.y;
+      cols.forEach(c => { doc.text(c.label, x, y, { width: c.width, align: c.align }); x += c.width; });
+      const x0 = doc.page.margins.left, x1 = doc.page.width - doc.page.margins.right;
+      doc.moveDown(0.2).moveTo(x0, doc.y).lineTo(x1, doc.y).strokeColor('#ddd').stroke().moveDown(0.2);
+    };
+
+    const newPage = () => { doc.addPage(); header(); printTableHeader(); };
+
+    // Começo
+    header();
+    printTableHeader();
+    doc.font('Helvetica').fontSize(10);
+
+    vendas.forEach(v => {
+      if (doc.y + rowH > bottom()) newPage();
+      let x = doc.page.margins.left; const y = doc.y;
+
+      doc.text(String(v.id), x, y, { width: cols[0].width, align: cols[0].align }); 
+      x += cols[0].width;
+
+      const cliente = String(v.cliente || '').trim();
+      const max = cols[1].width;
+      let out = cliente;
+      while (doc.widthOfString(out) > max && out.length > 1) out = out.slice(0, out.length - 2) + '…';
+      doc.text(out, x, y, { width: max, align: 'left' }); 
+      x += cols[1].width;
+
+      doc.text(moedaBR(v.total), x, y, { width: cols[2].width, align: 'right' });
+      doc.moveDown(0.3);
+    });
+
+    if (doc.y + 30 > bottom()) newPage();
+    doc.moveDown(0.8).fontSize(9).fillColor('#777').text(`Gerado em: ${dataBR(new Date())}`);
+    doc.end();
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Erro ao gerar relatório.');
+  }
+});
+
+////relatorio de itens
+
+// === Relatório: Itens Vendidos (agregado por produto) ===
+
+
+app.get('/relatorios/itens-vendidos-geral', async (req, res) => {
+  try {
+    // Agregado por produto
+    const sql = `
+      SELECT 
+        p.id                 AS id_produto,
+        COALESCE(p.nome, '') AS produto,
+        COALESCE(SUM(i.quantidade), 0) AS quantidade
+      FROM itens_venda i
+      JOIN produtos p ON p.id = i.id_produto
+      GROUP BY p.id, p.nome
+      ORDER BY quantidade DESC, p.nome ASC
+    `;
+    const { rows } = await pool.query(sql);
+
+    // Total geral de itens vendidos (soma das quantidades)
+    const totalItens = rows.reduce((acc, r) => acc + Number(r.quantidade || 0), 0);
+
+    // PDF
+    const doc = new PDFDocument({ size: 'A4', margin: 36 });
+    const fileName = `relatorio-itens-vendidos-geral.pdf`;
+    res.attachment(fileName);
+    res.setHeader('Content-Type', 'application/pdf');
+    doc.pipe(res);
+
+    const dataBR = d => new Date(d).toLocaleString('pt-BR');
+
+    // Cabeçalho
+    const header = () => {
+      doc.fontSize(18).font('Helvetica-Bold').text('Relatório: Itens Vendidos (Geral)');
+      doc.moveDown(0.4);
+      doc.fontSize(12).font('Helvetica-Bold').text(`Total de itens vendidos: ${totalItens.toLocaleString('pt-BR')}`);
+      const x0 = doc.page.margins.left;
+      const x1 = doc.page.width - doc.page.margins.right;
+      doc.moveDown(0.6).moveTo(x0, doc.y).lineTo(x1, doc.y).strokeColor('#ccc').stroke().moveDown(0.6);
+    };
+
+    // Tabela
+    const cols = [
+      { key: 'id_produto', label: 'ID Produto', width: 90, align: 'left' },
+      { key: 'produto',    label: 'Produto',    width: 300, align: 'left' },
+      { key: 'quantidade', label: 'Quantidade', width: 120, align: 'right' }
+    ];
+    const rowH = 18;
+    const bottom = () => doc.page.height - doc.page.margins.bottom - 10;
+
+    const printTableHeader = () => {
+      doc.font('Helvetica-Bold').fontSize(11);
+      let x = doc.page.margins.left;
+      cols.forEach(c => {
+        doc.text(c.label, x, doc.y, { width: c.width, align: c.align });
+        x += c.width;
+      });
+      const x0 = doc.page.margins.left, x1 = doc.page.width - doc.page.margins.right;
+      doc.moveDown(0.2).moveTo(x0, doc.y).lineTo(x1, doc.y).strokeColor('#ddd').stroke().moveDown(0.2);
+    };
+
+    const newPage = () => { doc.addPage(); header(); printTableHeader(); };
+
+    // Render
+    header();
+    printTableHeader();
+    doc.font('Helvetica').fontSize(10);
+
+    rows.forEach(r => {
+      if (doc.y + rowH > bottom()) newPage();
+
+      let x = doc.page.margins.left;
+
+      // ID Produto
+      doc.text(String(r.id_produto), x, doc.y, { width: cols[0].width, align: cols[0].align });
+      x += cols[0].width;
+
+      // Produto com truncamento elegante
+      let nome = String(r.produto || '').trim();
+      const maxW = cols[1].width;
+      while (doc.widthOfString(nome) > maxW && nome.length > 1) {
+        nome = nome.slice(0, nome.length - 2) + '…';
+      }
+      doc.text(nome, x, doc.y, { width: maxW, align: 'left' });
+      x += cols[1].width;
+
+      // Quantidade
+      const qtdStr = Number(r.quantidade || 0).toLocaleString('pt-BR');
+      doc.text(qtdStr, x, doc.y, { width: cols[2].width, align: 'right' });
+
+      doc.moveDown(0.3);
+    });
+
+    // Rodapé
+    if (doc.y + 30 > bottom()) newPage();
+    doc.moveDown(0.8).fontSize(9).fillColor('#777').text(`Gerado em: ${dataBR(new Date())}`);
+    doc.end();
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Erro ao gerar relatório de itens vendidos. Universo 1 x 0 você.');
+  }
+});
+
+
+
 app.listen(port, () => {
   console.log(`Servidor rodando em http://localhost:${port}`);
 });

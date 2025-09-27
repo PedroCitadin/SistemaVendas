@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Relatórios</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .report-card { transition: transform .15s ease, box-shadow .15s ease; cursor: pointer; }
+    .report-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+    .icon-wrap { width: 48px; height: 48px; border-radius: 12px; display:flex; align-items:center; justify-content:center; background: rgba(13,110,253,.08); }
+    .icon-wrap i { font-size: 1.4rem; }
+  </style>
+</head>
+<body class="bg-light">
+  <!-- Navbar simples para ficar consistente com o resto -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="/">📊 Relatórios</a>
+      <div class="navbar-text text-white-50">
+        <small><%= usuario ? ('Olá, ' + (usuario.nome || 'usuário')) : '' %></small>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container my-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h1 class="h3 m-0">Menu de Relatórios</h1>
+      <a href="/" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Voltar</a>
+    </div>
+    <p class="text-muted">Escolha um relatório. Sim, tudo que você sonhou em planilhas, mas sem sofrer com fórmulas quebradas.</p>
+
+    <div class="row g-3">
+      <!-- Vendas por Período -->
+      <div class="col-12 col-md-6 col-lg-4">
+        <a class="text-decoration-none" href="/relatorios/vendas-geral">
+          <div class="card report-card h-100">
+            <div class="card-body d-flex gap-3">
+              <div class="icon-wrap"><i class="bi bi-calendar2-week"></i></div>
+              <div>
+                <h2 class="h6 mb-1 text-dark">Relatório Geral de Vendas</h2>
+                <p class="text-muted small mb-0">Lista com todas as vendas efetuadas com valor total</p>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Produtos com Baixo Estoque -->
+      <div class="col-12 col-md-6 col-lg-4">
+        <a class="text-decoration-none" href="/relatorios/itens-vendidos-geral">
+          <div class="card report-card h-100">
+            <div class="card-body d-flex gap-3">
+              <div class="icon-wrap"><i class="bi bi-exclamation-triangle"></i></div>
+              <div>
+                <h2 class="h6 mb-1 text-dark">Relatório de Itens vendidos</h2>
+                <p class="text-muted small mb-0">Itens relação de itens vendidos</p>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+
+
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
