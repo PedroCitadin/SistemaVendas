@@ -910,7 +910,6 @@ app.get('/vendas/recibo/:id', requireAuth, async (req, res) => {
   try {
     const vendaId = req.params.id;
 
-    // Consulta venda
     const vendaResult = await pool.query(`
       SELECT v.id, v.data_venda, v.total, c.nome AS cliente_nome, c.cpf AS cliente_cpf
       FROM vendas v
@@ -952,16 +951,13 @@ app.get('/vendas/recibo/:id', requireAuth, async (req, res) => {
       h: doc.page.height - doc.page.margins.top - doc.page.margins.bottom
     };
 
-    // Cabeçalho
     function drawHeader() {
       const h = mm(26);
       doc.save().rect(page.x, page.y, page.w, h).fill(lightGray).restore();
-
       doc.fillColor(primary).fontSize(fs.lg).font('Helvetica-Bold')
         .text('Associação Hospitalar Nossa Senhora de Fátima', page.x, page.y + mm(2), {
           width: page.w - mm(35), align: 'center'
         });
-
       doc.fillColor('#000').font('Helvetica').fontSize(fs.sm)
         .text('Rua Frei Protásio, 431 • Centro • Praia Grande/SC',
               page.x, page.y + mm(12),
@@ -972,127 +968,92 @@ app.get('/vendas/recibo/:id', requireAuth, async (req, res) => {
         .text('CNPJ: 07.420.153/0001-37',
               page.x, page.y + mm(22),
               { width: page.w - mm(35), align: 'center' });
-
       const boxW = mm(30), boxH = mm(14);
       const boxX = page.x + page.w - boxW;
       const boxY = page.y + mm(6);
-
       doc.roundedRect(boxX, boxY, boxW, boxH, 3)
         .strokeColor(primary).lineWidth(1).stroke();
-
       doc.font('Helvetica').fontSize(fs.xs).fillColor('#000')
         .text('Nº', boxX + mm(2), boxY + mm(2));
       doc.font('Helvetica-Bold').fontSize(fs.md)
         .text(String(venda.id).padStart(4, '0'), boxX, boxY + mm(5), { width: boxW, align: 'center' });
-
-      return page.y + h; // retorna o fim do cabeçalho
+      return page.y + h;
     }
 
-    // Bloco de dados da venda
     function drawMeta(yStart) {
-      const y = yStart + mm(5); // espaço depois do cabeçalho
+      const y = yStart + mm(5);
       const lh = mm(6);
       const dataStr = new Date(venda.data_venda).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
       const cpfStr = venda.cliente_cpf ? maskCPF(venda.cliente_cpf) : '-';
-
       doc.font('Helvetica').fontSize(fs.base).fillColor('#000')
         .text('Data:', page.x, y)
         .font('Helvetica-Bold').text(dataStr, page.x + mm(18), y);
-
       doc.font('Helvetica').text('Cliente:', page.x + mm(60), y)
         .font('Helvetica-Bold').text(venda.cliente_nome || 'Sem cliente', page.x + mm(80), y);
-
       doc.font('Helvetica').text('CPF:', page.x, y + lh)
         .font('Helvetica-Bold').text(cpfStr, page.x + mm(18), y + lh);
-
       doc.font('Helvetica').text('Atendente:', page.x + mm(60), y + lh)
-        .font('Helvetica-Bold').text((req.user && req.user.nome) || '-', page.x + mm(80), y + lh);
-
+        .font('Helvetica-Bold').text((req.session?.user?.nome) || '-', page.x + mm(80), y + lh);
       doc.moveTo(page.x, y + lh * 2.2).lineTo(page.x + page.w, y + lh * 2.2)
         .strokeColor(lineGray).lineWidth(0.5).stroke();
-
-      return y + lh * 2.5; // retorna onde a tabela deve começar
+      return y + lh * 2.5;
     }
-    // Tabela com altura dinâmica por linha
+
     function drawTable(startY) {
-      // larguras das colunas
       const col = {
         qtd: mm(16),
         desc: page.w - mm(16 + 28 + 32),
         unit: mm(28),
         total: mm(32)
       };
-
-      // cabeçalho
       const headerH = mm(8);
       doc.save().rect(page.x, startY, page.w, headerH).fill('#e9ecef').restore();
       doc.lineWidth(0.8).strokeColor(lineGray).rect(page.x, startY, page.w, headerH).stroke();
-
       doc.font('Helvetica-Bold').fontSize(fs.sm).fillColor('#000')
         .text('Quant', page.x + mm(2), startY + mm(2), { width: col.qtd - mm(4), align: 'left' })
         .text('DESCRIÇÃO DO ITEM', page.x + col.qtd + mm(2), startY + mm(2), { width: col.desc - mm(4), align: 'left' })
         .text('VL UN', page.x + col.qtd + col.desc + mm(2), startY + mm(2), { width: col.unit - mm(4), align: 'right' })
         .text('VALOR TOTAL', page.x + col.qtd + col.desc + col.unit + mm(2), startY + mm(2), { width: col.total - mm(4), align: 'right' });
-
       let y = startY + headerH;
       const minRowH = mm(7.5);
-      const bottomLimit = page.y + page.h - mm(45); // espaço para total e assinaturas
+      const bottomLimit = page.y + page.h - mm(45);
       let totalGeral = 0;
-
-      // função para desenhar cada item respeitando altura do texto
       const drawRow = (item) => {
         const subtotal = Number(item.quantidade) * Number(item.preco_unitario);
         totalGeral += subtotal;
-
         const desc = String(item.nome || '');
         const descOptions = { width: col.desc - mm(4), align: 'left' };
-        // mede a altura necessária para a descrição
         const textHeight = Math.ceil(doc.heightOfString(desc, descOptions));
-        // altura da linha = maior entre mínimo e texto + margenzinha
         const rowH = Math.max(minRowH, textHeight + mm(2));
-
-        // quebra de página, se necessário
         if (y + rowH > bottomLimit) {
-          // desenha total parcial antes de quebrar (opcional; pode remover se não quiser)
-          drawTotals(y, totalGeral);
           doc.addPage();
-
-          // recomputa área útil
           page.x = doc.page.margins.left;
           page.y = doc.page.margins.top;
           page.w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
           page.h = doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
-
-          drawHeader();
-          const metaEnd = drawMeta(page.y + mm(24));
-          // reabrir cabeçalho da tabela na nova página
-          y = drawTable(metaEnd + mm(3)).y; // drawTable retorna o y atual; mas aqui só queremos o topo de linhas
+          const newStartY = page.y;
+          doc.save().rect(page.x, newStartY, page.w, headerH).fill('#e9ecef').restore();
+          doc.lineWidth(0.8).strokeColor(lineGray).rect(page.x, newStartY, page.w, headerH).stroke();
+          doc.font('Helvetica-Bold').fontSize(fs.sm).fillColor('#000')
+            .text('Quant', page.x + mm(2), newStartY + mm(2), { width: col.qtd - mm(4), align: 'left' })
+            .text('DESCRIÇÃO DO ITEM', page.x + col.qtd + mm(2), newStartY + mm(2), { width: col.desc - mm(4), align: 'left' })
+            .text('VL UN', page.x + col.qtd + col.desc + mm(2), newStartY + mm(2), { width: col.unit - mm(4), align: 'right' })
+            .text('VALOR TOTAL', page.x + col.qtd + col.desc + col.unit + mm(2), newStartY + mm(2), { width: col.total - mm(4), align: 'right' });
+          y = newStartY + headerH;
         }
-
-        // linha horizontal guia
         doc.strokeColor('#ddd').lineWidth(0.5).moveTo(page.x, y).lineTo(page.x + page.w, y).stroke();
-
-        // células
         doc.font('Helvetica').fontSize(fs.sm).fillColor('#000')
           .text(String(item.quantidade), page.x + mm(2), y + mm(1), { width: col.qtd - mm(4) });
-
         doc.text(desc, page.x + col.qtd + mm(2), y + mm(1), descOptions);
-
         doc.text(BRL(item.preco_unitario), page.x + col.qtd + col.desc, y + mm(1), { width: col.unit - mm(2), align: 'right' });
         doc.text(BRL(subtotal), page.x + col.qtd + col.desc + col.unit, y + mm(1), { width: col.total - mm(2), align: 'right' });
-
-        // borda da linha
         doc.strokeColor(lineGray).lineWidth(0.6).rect(page.x, y, page.w, rowH).stroke();
-        // colunas verticais
         doc.moveTo(page.x + col.qtd, y).lineTo(page.x + col.qtd, y + rowH).stroke();
         doc.moveTo(page.x + col.qtd + col.desc, y).lineTo(page.x + col.qtd + col.desc, y + rowH).stroke();
         doc.moveTo(page.x + col.qtd + col.desc + col.unit, y).lineTo(page.x + col.qtd + col.desc + col.unit, y + rowH).stroke();
-
         y += rowH;
       };
-
       itens.forEach(drawRow);
-
       return { y, total: totalGeral };
     }
 
@@ -1107,15 +1068,12 @@ app.get('/vendas/recibo/:id', requireAuth, async (req, res) => {
     function drawSignatures(y) {
       const lineY = y + mm(14);
       const colW = (page.w - mm(8)) / 2;
-
       doc.strokeColor(lineGray).lineWidth(0.8)
         .moveTo(page.x + mm(4), lineY).lineTo(page.x + mm(4) + colW, lineY).stroke()
         .moveTo(page.x + mm(8) + colW, lineY).lineTo(page.x + mm(8) + colW + colW, lineY).stroke();
-
       doc.font('Helvetica').fontSize(fs.sm)
         .text('Assinatura do Responsável', page.x + mm(4), lineY + mm(1), { width: colW, align: 'center' })
         .text('Assinatura do Cliente', page.x + mm(8) + colW, lineY + mm(1), { width: colW, align: 'center' });
-
       return lineY + mm(10);
     }
 
@@ -1126,7 +1084,6 @@ app.get('/vendas/recibo/:id', requireAuth, async (req, res) => {
         .text(text, page.x, y + mm(2), { width: page.w, align: 'justify' });
     }
 
-    // Renderização
     drawHeader();
     const metaEnd = drawMeta(page.y + mm(24));
     const table = drawTable(metaEnd + mm(3));
@@ -1140,7 +1097,6 @@ app.get('/vendas/recibo/:id', requireAuth, async (req, res) => {
     res.status(500).send('Erro ao gerar recibo: ' + err.message);
   }
 });
-
 // --------- Carga via Excel ---------
 app.get('/carga-produtos', requireAuth, (req, res) => {
   res.render('carga-produtos');
