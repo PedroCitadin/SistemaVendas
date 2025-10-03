@@ -729,6 +729,7 @@ app.get('/vendas', requireAuth, async (req, res) => {
 
 app.post('/vendas', requireAuth, async (req, res) => {
   const { id_cliente, itens } = req.body;
+const user_id = req.session.usuario.id;
   try {
     if (!itens || !Array.isArray(itens) || itens.length === 0) {
       throw new Error('Nenhum item adicionado à venda');
@@ -736,8 +737,8 @@ app.post('/vendas', requireAuth, async (req, res) => {
     await pool.query('BEGIN');
 
     const vendaResult = await pool.query(
-      'INSERT INTO vendas (id_cliente, total) VALUES ($1, $2) RETURNING id',
-      [id_cliente || null, 0]
+      'INSERT INTO vendas (id_cliente, total, id_usuario) VALUES ($1, $2, $3) RETURNING id',
+      [id_cliente || null, 0, user_id]
     );
     const id_venda = vendaResult.rows[0].id;
     let total = 0;
@@ -1207,8 +1208,9 @@ app.get('/relatorios',  requireAuth,  (req, res) => {
 app.get('/relatorios/vendas-geral', async (req, res) => {
   try {
     // Total vendido
-    const totalQuery = `SELECT COALESCE(SUM(v.total), 0) AS total_vendido FROM vendas v`;
-    const { rows: totalRows } = await pool.query(totalQuery);
+const user_id = req.session.usuario.id;
+    const totalQuery = `SELECT COALESCE(SUM(v.total), 0) AS total_vendido FROM vendas v where v.id_usuario = $1`;
+    const { rows: totalRows } = await pool.query(totalQuery,[user_id]);
     const totalVendido = Number(totalRows[0]?.total_vendido || 0);
 
     // Lista de vendas
@@ -1219,9 +1221,10 @@ app.get('/relatorios/vendas-geral', async (req, res) => {
         COALESCE(c.nome, 'Sem cliente') AS cliente
       FROM vendas v
       LEFT JOIN clientes c ON c.id = v.id_cliente
-      ORDER BY v.id DESC
+      where v.id_usuario =$1
+ORDER BY v.id DESC
     `;
-    const { rows: vendas } = await pool.query(listaQuery);
+    const { rows: vendas } = await pool.query(listaQuery,[user_id]);
 
     // Configura PDF
     const doc = new PDFDocument({ size: 'A4', margin: 36 });
