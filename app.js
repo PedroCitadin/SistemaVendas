@@ -1,4 +1,4 @@
-require('dotenv').config();
+orequire('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 const bodyParser = require('body-parser');
@@ -1165,7 +1165,7 @@ app.get('/relatorios/vendas-geral', async (req, res) => {
   try {
     // Total vendido
 const user_id = req.session.usuario.id;
-    const totalQuery = `SELECT COALESCE(SUM(v.total), 0) AS total_vendido FROM vendas v where v.id_usuario = $1`;
+    const totalQuery = `SELECT COALESCE(SUM(v.total), 0) AS total_vendido FROM vendas v where v.id_usuario = $1 and v.status <>'CANCELADA'`;
     const { rows: totalRows } = await pool.query(totalQuery,[user_id]);
     const totalVendido = Number(totalRows[0]?.total_vendido || 0);
 
@@ -1177,7 +1177,7 @@ const user_id = req.session.usuario.id;
         COALESCE(c.nome, 'Sem cliente') AS cliente
       FROM vendas v
       LEFT JOIN clientes c ON c.id = v.id_cliente
-      where v.id_usuario =$1
+      where v.id_usuario =$1 and v.status <> 'CANCELADA'
 ORDER BY v.id DESC
     `;
     const { rows: vendas } = await pool.query(listaQuery,[user_id]);
